@@ -6,6 +6,7 @@ members = [
     "benchmark",
     "client",
     "client/libra_wallet",
+    "json_api",
     "common/canonical_serialization",
     "common/crash_handler",
     "common/debug_interface",
@@ -66,3 +67,7 @@ debug = true
 
 [profile.bench]
 debug = true
+
+# TEMPORARY
+[patch.crates-io]
+rocket = { git = "https://github.com/voidxnull/Rocket", branch = "v0.4" }
