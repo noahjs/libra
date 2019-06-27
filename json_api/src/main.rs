@@ -88,13 +88,15 @@ fn main() -> std::io::Result<()> {
         );
         return Ok(());
     }
-
-    // =================================================================================================
+    
     rocket::ignite()
         .manage(Mutex::new(AppState {
             proxy: client_proxy,
         }))
-        .mount("/", routes![handlers::get_balance])
+        .mount("/", routes![
+            handlers::get_balance,
+            handlers::mint_coins,
+        ])
         .launch();
 
     Ok(())
