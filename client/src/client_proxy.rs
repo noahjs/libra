@@ -151,6 +151,45 @@ impl ClientProxy {
             is_blocking,
         )
     }
+
+    /// Version of [`ClientProxy::get_committed_txn_by_acc_seq()`](ClientProxy::get_committed_txn_by_acc_seq()) with explicit arguments.
+    pub fn get_committed_txn_by_acc_seq_alt(
+        &mut self,
+        address: &str,
+        sequence_number: u64,
+        fetch_events: bool,
+    ) -> Result<Option<(SignedTransaction, Option<Vec<ContractEvent>>)>> {
+        let account = self.get_account_address_from_parameter(address)?;
+
+        self.client
+            .get_txn_by_acc_seq(account, sequence_number, fetch_events)
+    }
+
+    /// Version of [`ClientProxy::get_events_by_account_and_type()`](ClientProxy::get_events_by_account_and_type()) with explicit arguments.
+    pub fn get_events_by_account_and_type_alt(
+        &mut self,
+        address: &str,
+        event_type: &str, // TODO: It would be better to use an enum here
+        start_seq_number: u64,
+        limit: u64,
+        ascending: bool,
+    ) -> Result<(Vec<EventWithProof>, Option<AccountStateWithProof>)> {
+        let account = self.get_account_address_from_parameter(address)?;
+        
+        let path = match event_type {
+            "sent" => account_sent_event_path(),
+            "received" => account_received_event_path(),
+            _ => bail!(
+                "Unknown event type: {:?}, only sent and received are supported",
+                event_type
+            ),
+        };
+        
+        let access_path = AccessPath::new(account, path);
+
+        self.client
+            .get_events_by_access_path(access_path, start_seq_number, ascending, limit)
+    }
     
     /// Construct a new TestClient.
     pub fn new(

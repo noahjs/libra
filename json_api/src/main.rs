@@ -16,6 +16,7 @@ use crate::handlers::AppState;
 
 mod error;
 mod handlers;
+mod serializers;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -88,16 +89,22 @@ fn main() -> std::io::Result<()> {
         );
         return Ok(());
     }
-    
+
     rocket::ignite()
         .manage(Mutex::new(AppState {
             proxy: client_proxy,
         }))
-        .mount("/", routes![
-            handlers::get_balance,
-            handlers::mint_coins,
-            handlers::transfer_coins,
-        ])
+        .mount(
+            "/",
+            routes![
+                handlers::get_balance,
+                handlers::mint_coins,
+                handlers::transfer_coins,
+                handlers::get_committed_txn_by_acc_seq,
+                handlers::get_committed_txn_by_range,
+                handlers::get_events_by_account_and_type,
+            ],
+        )
         .launch();
 
     Ok(())

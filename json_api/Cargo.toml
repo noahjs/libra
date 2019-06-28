@@ -19,6 +19,5 @@ client = { path = "../client" }
 failure_ext = { path = "../common/failure_ext" }
 logger = { path = "../common/logger" }
 crash_handler = { path = "../common/crash_handler" }
-
-
-
+types = { path = "../types" }
+crypto = { path = "../crypto/legacy_crypto" }
