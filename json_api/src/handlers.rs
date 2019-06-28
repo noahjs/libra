@@ -20,9 +20,9 @@ pub struct BalanceRes {
 
 #[get("/get_balance/<addr>")]
 pub fn get_balance(state: State<Mutex<AppState>>, addr: String) -> Result<Json<BalanceRes>> {
-    // It seems like the first element of the space_delim_strings argument is not used.
-    let balance = state.lock().proxy.get_balance(&["", &addr])?;
-
+    let mut proxy = &mut state.lock().proxy;
+    let balance = proxy.get_balance_alt(&addr)?;
+    
     Ok(Json(BalanceRes { balance }))
 }
 
@@ -34,8 +34,25 @@ pub struct MintCoinsData {
 
 #[post("/mint_coins", data = "<data>")]
 pub fn mint_coins(state: State<Mutex<AppState>>, data: Form<MintCoinsData>) -> Result<Json<JsonValue>> {
-    // TODO: Should it be blocking?
-    state.lock().proxy.mint_coins(&["", &data.receiver, &data.num_coins], true)?;
+    let mut proxy = &mut state.lock().proxy;
+    proxy.mint_coins_alt(&data.receiver, &data.num_coins)?;
+    
     Ok(Json(json!({ "success": true })))
 }
 
+#[derive(FromForm)]
+pub struct TransferCoinsData {
+    sender_addr: String,
+    receiver_addr: String,
+    num_coins: String,
+    gas_unit_price: Option<u64>,
+    max_gas_amount: Option<u64>,
+}
+
+#[post("/transfer_coins", data = "<data>")]
+pub fn transfer_coins(state: State<Mutex<AppState>>, data: Form<TransferCoinsData>) -> Result<Json<JsonValue>> {
+    let mut proxy = &mut state.lock().proxy;
+    proxy.transfer_coins_alt(&data.sender_addr, &data.receiver_addr, &data.num_coins, data.gas_unit_price, data.max_gas_amount)?;
+
+    Ok(Json(json!({ "success": true })))
+}

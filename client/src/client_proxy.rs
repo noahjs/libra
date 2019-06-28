@@ -94,6 +94,64 @@ pub struct ClientProxy {
 }
 
 impl ClientProxy {
+    /// Version of [`ClientProxy::get_balance()`](ClientProxy::get_balance()) with explicit arguments.
+    pub fn get_balance_alt(&mut self, address: &str) -> Result<String> {
+        let address = self.get_account_address_from_parameter(address)?;
+        self.get_account_resource_and_update(address).map(|res| {
+            let whole_num = res.balance() / 1_000_000;
+            let remainder = res.balance() % 1_000_000;
+            format!("{}.{:0>6}", whole_num.to_string(), remainder.to_string())
+        })
+    }
+    
+    /// Version of [`ClientProxy::mint_coins()`](ClientProxy::mint_coins()) with explicit arguments.
+    pub fn mint_coins_alt(&mut self, address: &str, amount: &str) -> Result<()> {
+        let receiver = self.get_account_address_from_parameter(address)?;
+        let num_coins = Self::convert_to_micro_libras(amount)?;
+        let is_blocking = true;
+        
+        match self.faucet_account {
+            Some(_) => self.mint_coins_with_local_faucet_account(&receiver, num_coins, is_blocking),
+            None => self.mint_coins_with_faucet_service(&receiver, num_coins, is_blocking),
+        }
+    }
+
+    /// Version of [`ClientProxy::transfer_coins()`](ClientProxy::transfer_coins()) with explicit arguments
+    pub fn transfer_coins_alt(
+        &mut self,
+        sender: &str,
+        receiver: &str,
+        num_coins: &str,
+        gas_unit_price: Option<u64>,
+        max_gas_amount: Option<u64>,
+    ) -> Result<IndexAndSequence> {
+        let sender_account_address =
+            self.get_account_address_from_parameter(sender)?;
+        let receiver_address = self.get_account_address_from_parameter(receiver)?;
+        let num_coins = Self::convert_to_micro_libras(num_coins)?;
+        let sender_account_ref_id = *self
+            .address_to_ref_id
+            .get(&sender_account_address)
+            .ok_or_else(|| {
+                format_err!(
+                    "Unable to find existing managing account by address: {}, to see all existing \
+                     accounts, run: 'account list'",
+                    sender_account_address
+                )
+            })?;
+
+        let is_blocking = true;
+
+        self.transfer_coins_int(
+            sender_account_ref_id,
+            &receiver_address,
+            num_coins,
+            gas_unit_price,
+            max_gas_amount,
+            is_blocking,
+        )
+    }
+    
     /// Construct a new TestClient.
     pub fn new(
         host: &str,

@@ -96,6 +96,7 @@ fn main() -> std::io::Result<()> {
         .mount("/", routes![
             handlers::get_balance,
             handlers::mint_coins,
+            handlers::transfer_coins,
         ])
         .launch();
 
