@@ -20,7 +20,7 @@ pub fn create_next_account(state: State<Mutex<AppState>>) -> Result<Json<JsonVal
     let acc = proxy.create_next_account()?;
     
     Ok(Json(json!({
-        "address": acc.address,
+        "address": format!("{}", &acc.address),
         "index": acc.index,
         "success": true,
     })))
