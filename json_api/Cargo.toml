@@ -21,3 +21,4 @@ logger = { path = "../common/logger" }
 crash_handler = { path = "../common/crash_handler" }
 types = { path = "../types" }
 crypto = { path = "../crypto/legacy_crypto" }
+vm_genesis = { path = "../language/vm/vm_genesis" }

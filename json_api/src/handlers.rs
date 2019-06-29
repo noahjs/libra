@@ -151,7 +151,66 @@ pub fn get_events_by_account_and_type(
         .map_err(|err| From::from(err))
 }
 
-//#[get("/create_submit_transaction_req/<addr>?<event_type>&<start_seq_number>&<limit>&<ascending>")]
-//pub fn create_submit_transaction_req() {
+//#[derive(FromForm)]
+//pub struct TxReqData {
+//    program: ProgramKind, // TODO: Tag internally
+//    sender: String,
+//    gas_unit_price: Option<u64>,
+//    max_gas_amount: Option<u64>,
+//}
 //
+//#[derive(Deserialize)]
+//#[serde(tag = "type", rename_all = "snake_case")]
+//pub enum ProgramKind {
+//    Transfer {
+//        recipient: String,
+//        amount: String,
+//    },
+//    Mint {
+//        sender: String,
+//        amount: String,
+//    },
+//}
+//
+//#[post("/create_submit_transaction_req", data = "<data>")]
+//pub fn create_submit_transaction_req(state: State<Mutex<AppState>>, data: Form<TxReqData>) -> Result<Json<JsonValue>> {
+//    let proxy = &mut state.lock().proxy;
+//
+//    let program = match data.program {
+//        ProgramKind::Transfer { recipient, amount } => {
+//            let recipient =
+//                proxy.get_account_address_from_parameter(&recipient)?;
+//            let amount = ClientProxy::convert_to_micro_libras_alt(&amount)?;
+//            
+//            vm_genesis::encode_transfer_program(&recipient, amount)
+//        }
+//        ProgramKind::Mint { sender, amount } => {
+//            let sender =
+//                proxy.get_account_address_from_parameter(&sender)?;
+//            let amount = ClientProxy::convert_to_micro_libras_alt(&amount)?;
+//            
+//            vm_genesis::encode_mint_program(&sender, amount)
+//        }
+//    };
+//    
+//    let sender_address =
+//        proxy.get_account_address_from_parameter(&data.sender)?;
+//    let sender_ref_id = proxy.ref_id_by_address(&sender_address)?;
+//    
+//    // FIXME: Get account by address
+////    let sender_account = proxy
+//
+//    let tx = proxy.create_submit_transaction_req(
+//        program,
+//        &data.sender_account,
+//        data.gas_unit_price,
+//        data.max_gas_amount,
+//    )?;
+//    
+//
+//    let sender_mut = proxy.account_mut(sender_ref_id)?;
+//
+//    resp = proxy.client.submit_transaction(sender_mut, &req)?;
+//
+//    Ok(Json(json!({ "success": true })))
 //}
