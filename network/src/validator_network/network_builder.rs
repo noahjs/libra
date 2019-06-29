@@ -38,6 +38,7 @@ use std::{
     time::Duration,
 };
 use tokio::runtime::TaskExecutor;
+use tokio_retry::strategy::ExponentialBackoff;
 use tokio_timer::Interval;
 use types::{validator_signer::ValidatorSigner, PeerId};
 
@@ -53,7 +54,7 @@ pub const MAX_CONCURRENT_INBOUND_RPCS: u32 = 100;
 pub const PING_FAILURES_TOLERATED: u64 = 10;
 pub const MAX_CONCURRENT_NETWORK_REQS: u32 = 100;
 pub const MAX_CONCURRENT_NETWORK_NOTIFS: u32 = 100;
-pub const MAX_CONNECTION_ATTEMPTS: u32 = 10;
+pub const MAX_CONNECTION_DELAY_MS: u64 = 10 * 60 * 1000 /* 10 minutes */;
 
 /// The type of the transport layer, i.e., running on memory or TCP stream,
 /// with or without Noise encryption
@@ -93,7 +94,7 @@ pub struct NetworkBuilder {
     max_concurrent_inbound_rpcs: u32,
     max_concurrent_network_reqs: u32,
     max_concurrent_network_notifs: u32,
-    max_connection_attempts: u32,
+    max_connection_delay_ms: u64,
     signing_keys: Option<(PrivateKey, PublicKey)>,
     identity_keys: Option<(X25519PrivateKey, X25519PublicKey)>,
 }
@@ -123,9 +124,9 @@ impl NetworkBuilder {
             inbound_rpc_timeout_ms: INBOUND_RPC_TIMEOUT_MS,
             max_concurrent_outbound_rpcs: MAX_CONCURRENT_OUTBOUND_RPCS,
             max_concurrent_inbound_rpcs: MAX_CONCURRENT_INBOUND_RPCS,
-            max_connection_attempts: MAX_CONNECTION_ATTEMPTS,
             max_concurrent_network_reqs: MAX_CONCURRENT_NETWORK_REQS,
             max_concurrent_network_notifs: MAX_CONCURRENT_NETWORK_NOTIFS,
+            max_connection_delay_ms: MAX_CONNECTION_DELAY_MS,
             signing_keys: None,
             identity_keys: None,
         }
@@ -240,13 +241,6 @@ impl NetworkBuilder {
         self
     }
 
-    /// The maximum number of outbound connection attempts to a peer before giving up and waiting
-    /// for it to dial.
-    pub fn max_connection_attempts(&mut self, max_connection_attempts: u32) -> &mut Self {
-        self.max_connection_attempts = max_connection_attempts;
-        self
-    }
-
     /// The maximum number of concurrent NetworkRequests we will service in NetworkProvider.
     pub fn max_concurrent_network_reqs(&mut self, max_concurrent_network_reqs: u32) -> &mut Self {
         self.max_concurrent_network_reqs = max_concurrent_network_reqs;
@@ -260,6 +254,13 @@ impl NetworkBuilder {
         max_concurrent_network_notifs: u32,
     ) -> &mut Self {
         self.max_concurrent_network_notifs = max_concurrent_network_notifs;
+        self
+    }
+
+    /// The maximum duration (in milliseconds) we should wait before dialing a peer we should
+    /// connect to.
+    pub fn max_connection_delay_ms(&mut self, max_connection_delay_ms: u64) -> &mut Self {
+        self.max_connection_delay_ms = max_connection_delay_ms;
         self
     }
 
@@ -503,7 +504,8 @@ impl NetworkBuilder {
             PeerManagerRequestSender::new(pm_reqs_tx.clone()),
             pm_conn_mgr_notifs_rx,
             conn_mgr_reqs_rx,
-            self.max_connection_attempts,
+            ExponentialBackoff::from_millis(2).factor(1000 /* seconds */),
+            self.max_connection_delay_ms,
         );
         self.executor
             .spawn(conn_mgr.start().boxed().unit_error().compat());

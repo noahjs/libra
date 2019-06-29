@@ -14,8 +14,8 @@
   },
   "editable": true,
   "gnetId": null,
-  "graphTooltip": 1,
-  "id": 15,
+  "graphTooltip": 0,
+  "id": 10,
   "links": [],
   "panels": [
     {
@@ -28,91 +28,6 @@
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 0
-      },
-      "id": 6,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "links": [],
-      "nullPointMode": "null",
-      "options": {},
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "expr": "time() - ecs_start_time_seconds{role='validator'}",
-          "format": "time_series",
-          "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
-          "refId": "A"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Container Uptime",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "s",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": "0",
-          "show": true
-        },
-        {
-          "format": "short",
-          "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "fill": 1,
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
         "y": 0
       },
       "id": 4,
@@ -140,10 +55,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "network_gauge{op='connected_peers',role='validator'}",
+          "expr": "storage_gauge{op='cf_size_bytes_default'}",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
           "refId": "A"
         }
       ],
@@ -151,7 +65,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Connected Peers",
+      "title": "Default CF Size",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -167,7 +81,91 @@
       },
       "yaxes": [
         {
+          "format": "decbytes",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": "0",
+          "show": true
+        },
+        {
           "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "fill": 1,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "id": 12,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {},
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "storage_gauge{op='cf_size_bytes_signed_transaction'}",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Signed Transaction CF Size",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "decbytes",
           "label": null,
           "logBase": 1,
           "max": null,
@@ -200,7 +198,7 @@
         "x": 16,
         "y": 0
       },
-      "id": 2,
+      "id": 18,
       "legend": {
         "avg": false,
         "current": false,
@@ -225,10 +223,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(consensus_gauge{op='current_round',role='validator'}[1m])",
+          "expr": "storage_gauge{op='cf_size_bytes_transaction_info'}",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
           "refId": "A"
         }
       ],
@@ -236,7 +233,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Consensus Rounds",
+      "title": "Transaction Info CF Size",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -252,8 +249,8 @@
       },
       "yaxes": [
         {
-          "format": "short",
-          "label": "/s",
+          "format": "decbytes",
+          "label": null,
           "logBase": 1,
           "max": null,
           "min": "0",
@@ -285,7 +282,7 @@
         "x": 0,
         "y": 8
       },
-      "id": 8,
+      "id": 16,
       "legend": {
         "avg": false,
         "current": false,
@@ -310,10 +307,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(consensus_gauge{op='last_committed_version',role='validator'}[1m])",
+          "expr": "storage_gauge{op='cf_size_bytes_transaction_accumulator'}",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
           "refId": "A"
         }
       ],
@@ -321,7 +317,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Committed Transactions",
+      "title": "Transaction Accumulator CF Size",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -337,11 +333,11 @@
       },
       "yaxes": [
         {
-          "format": "short",
-          "label": "/s",
+          "format": "decbytes",
+          "label": null,
           "logBase": 1,
           "max": null,
-          "min": "0",
+          "min": null,
           "show": true
         },
         {
@@ -370,7 +366,7 @@
         "x": 8,
         "y": 8
       },
-      "id": 9,
+      "id": 14,
       "legend": {
         "avg": false,
         "current": false,
@@ -395,10 +391,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(mempool_duration_sum{op='e2e.latency'}[1m])/irate(mempool_duration_count{op='e2e.latency'}[1m])",
+          "expr": "storage_gauge{op='cf_size_bytes_state_merkle_node'}",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
           "refId": "A"
         }
       ],
@@ -406,7 +401,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "E2E Latency",
+      "title": "State Merkle Node CF Size",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -422,8 +417,8 @@
       },
       "yaxes": [
         {
-          "format": "ms",
-          "label": "",
+          "format": "decbytes",
+          "label": null,
           "logBase": 1,
           "max": null,
           "min": "0",
@@ -455,7 +450,7 @@
         "x": 16,
         "y": 8
       },
-      "id": 7,
+      "id": 2,
       "legend": {
         "avg": false,
         "current": false,
@@ -480,10 +475,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(consensus_gauge{op='last_committed_round',role='validator'}[1m])",
+          "expr": "storage_gauge{op='cf_size_bytes_account_state'}",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
           "refId": "A"
         }
       ],
@@ -491,7 +485,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Committed Blocks",
+      "title": "Account State CF Size",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -507,8 +501,8 @@
       },
       "yaxes": [
         {
-          "format": "short",
-          "label": "/s",
+          "format": "bytes",
+          "label": null,
           "logBase": 1,
           "max": null,
           "min": "0",
@@ -538,6 +532,174 @@
         "h": 8,
         "w": 8,
         "x": 0,
+        "y": 16
+      },
+      "id": 6,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {},
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "storage_gauge{op='cf_size_bytes_event'}",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Event CF Size",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "decbytes",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": "0",
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "fill": 1,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "id": 8,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {},
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "storage_gauge{op='cf_size_bytes_event_accumulator'}",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Event Accumulator CF Size",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "decbytes",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": "0",
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "fill": 1,
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
         "y": 16
       },
       "id": 10,
@@ -565,10 +727,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(consensus{op=\"failed_txns_count\"}[1m]) / irate(consensus{op=\"committed_txns_count\"}[1m])",
+          "expr": "storage_gauge{op='cf_size_bytes_event_by_access_path'}",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
           "refId": "A"
         }
       ],
@@ -576,7 +737,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Failed Transaction Percentage",
+      "title": "Event By Access Path CF Size",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -592,8 +753,8 @@
       },
       "yaxes": [
         {
-          "format": "percentunit",
-          "label": "/s",
+          "format": "decbytes",
+          "label": null,
           "logBase": 1,
           "max": null,
           "min": "0",
@@ -622,10 +783,10 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 8,
-        "y": 16
+        "x": 0,
+        "y": 24
       },
-      "id": 11,
+      "id": 20,
       "legend": {
         "avg": false,
         "current": false,
@@ -650,10 +811,9 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "irate(mempool{op=~\"gc.system_ttl_index.active|gc.expiration_time_index.active\"}[1m])",
+          "expr": "storage_gauge{op='cf_size_bytes_validator'}",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
           "refId": "A"
         }
       ],
@@ -661,7 +821,7 @@
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Timeout Transactions",
+      "title": "Validator CF Size",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -677,93 +837,8 @@
       },
       "yaxes": [
         {
-          "format": "short",
-          "label": "/s",
-          "logBase": 1,
-          "max": null,
-          "min": "0",
-          "show": true
-        },
-        {
-          "format": "short",
+          "format": "decbytes",
           "label": null,
-          "logBase": 1,
-          "max": null,
-          "min": null,
-          "show": true
-        }
-      ],
-      "yaxis": {
-        "align": false,
-        "alignLevel": null
-      }
-    },
-    {
-      "aliasColors": {},
-      "bars": false,
-      "dashLength": 10,
-      "dashes": false,
-      "fill": 1,
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 16
-      },
-      "id": 12,
-      "legend": {
-        "avg": false,
-        "current": false,
-        "max": false,
-        "min": false,
-        "show": true,
-        "total": false,
-        "values": false
-      },
-      "lines": true,
-      "linewidth": 1,
-      "links": [],
-      "nullPointMode": "null",
-      "options": {},
-      "percentage": false,
-      "pointradius": 2,
-      "points": false,
-      "renderer": "flot",
-      "seriesOverrides": [],
-      "spaceLength": 10,
-      "stack": false,
-      "steppedLine": false,
-      "targets": [
-        {
-          "expr": "mempool_gauge{op=\"txn.system_ttl_index\"}",
-          "format": "time_series",
-          "intervalFactor": 1,
-          "legendFormat": "{{peer_id}}",
-          "refId": "A"
-        }
-      ],
-      "thresholds": [],
-      "timeFrom": null,
-      "timeRegions": [],
-      "timeShift": null,
-      "title": "Mempool Size",
-      "tooltip": {
-        "shared": true,
-        "sort": 0,
-        "value_type": "individual"
-      },
-      "type": "graph",
-      "xaxis": {
-        "buckets": null,
-        "mode": "time",
-        "name": null,
-        "show": true,
-        "values": []
-      },
-      "yaxes": [
-        {
-          "format": "short",
-          "label": "",
           "logBase": 1,
           "max": null,
           "min": "0",
@@ -820,7 +895,7 @@
     ]
   },
   "timezone": "",
-  "title": "Validators",
-  "uid": "ybpvw2nWz2",
-  "version": 4
+  "title": "Storage",
+  "uid": "2Q0p7AVWk",
+  "version": 1
 }

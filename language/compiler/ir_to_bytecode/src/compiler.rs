@@ -10,7 +10,6 @@ use crate::{
         StructDefinition as MoveStruct, Tag, Type, UnaryOp, Var, Var_, While,
     },
 };
-use bytecode_verifier::verifier::{verify_module, verify_module_dependencies};
 use failure::*;
 use std::{
     clone::Clone,
@@ -22,7 +21,6 @@ use std::{
 use types::{account_address::AccountAddress, byte_array::ByteArray};
 use vm::{
     access::ModuleAccess,
-    errors::VerificationError,
     file_format::{
         AddressPoolIndex, ByteArrayPoolIndex, Bytecode, CodeUnit, CompiledModule,
         CompiledModuleMut, CompiledProgram, CompiledScriptMut, FieldDefinition,
@@ -254,34 +252,39 @@ struct CompilationScope<'a> {
     function_definitions:
         HashMap<ModuleHandleIndex, HashMap<String, (ModuleIndex, FunctionDefinitionIndex)>>,
     // imported modules (external contracts you compile
-    pub modules: &'a [CompiledModule],
+    pub modules: Vec<&'a CompiledModule>,
 }
 
 impl<'a> CompilationScope<'a> {
-    fn new(modules: &[CompiledModule]) -> CompilationScope {
+    fn new(modules: impl IntoIterator<Item = &'a CompiledModule>) -> Self {
         CompilationScope {
             imported_modules: HashMap::new(),
             function_definitions: HashMap::new(),
-            modules,
+            modules: modules.into_iter().collect(),
         }
     }
 
-    // TODO: Change `module_name` to be something like a ModuleIdent when we have better data
-    // structure for dependency modules input.
+    // TODO: Change the combination of `address` & `module_name` to something like a ModuleIdent
+    // when we have better data structure for dependency modules input.
     fn link_module(
         &mut self,
         import_name: &str,
+        addr: &AccountAddress,
         module_name: &str,
         mh_idx: ModuleHandleIndex,
     ) -> Result<()> {
         for idx in 0..self.modules.len() {
-            if self.modules[idx].name() == module_name {
+            if self.modules[idx].name() == module_name && self.modules[idx].address() == addr {
                 self.imported_modules
                     .insert(import_name.to_string(), (idx as u8, mh_idx));
                 return Ok(());
             }
         }
-        bail!("can't find module {} in dependency list", import_name);
+        bail!(
+            "can't find module 0x{}.{} in dependency list",
+            addr,
+            import_name
+        );
     }
 
     fn link_function(
@@ -302,7 +305,7 @@ impl<'a> CompilationScope<'a> {
     fn get_imported_module_impl(&self, name: &str) -> Result<(&CompiledModule, ModuleHandleIndex)> {
         match self.imported_modules.get(name) {
             None => bail!("no module named {}", name),
-            Some((module_index, mh_idx)) => Ok((&self.modules[*module_index as usize], *mh_idx)),
+            Some((module_index, mh_idx)) => Ok((self.modules[*module_index as usize], *mh_idx)),
         }
     }
 
@@ -328,7 +331,6 @@ impl<'a> CompilationScope<'a> {
             ),
             Some(func_map) => func_map,
         };
-
         let (module_index, fd_idx) = match func_map.get(name) {
             None => bail!("no function {} in module {}", name, mh_idx),
             Some(res) => res,
@@ -355,7 +357,10 @@ struct ModuleScope<'a> {
 }
 
 impl<'a> ModuleScope<'a> {
-    fn new(module: CompiledModuleMut, modules: &[CompiledModule]) -> ModuleScope {
+    fn new(
+        module: CompiledModuleMut,
+        modules: impl IntoIterator<Item = &'a CompiledModule>,
+    ) -> Self {
         ModuleScope {
             compilation_scope: CompilationScope::new(modules),
             struct_definitions: HashMap::new(),
@@ -363,15 +368,6 @@ impl<'a> ModuleScope<'a> {
             function_definitions: HashMap::new(),
             module,
         }
-    }
-
-    fn add_item<T>(item: T, table: &mut Vec<T>) -> Result<TableIndex> {
-        let size = table.len();
-        if size >= TABLE_MAX_SIZE {
-            bail!("Max table size reached!")
-        }
-        table.push(item);
-        Ok(size as TableIndex)
     }
 }
 
@@ -383,21 +379,24 @@ struct ScriptScope<'a> {
 }
 
 impl<'a> ScriptScope<'a> {
-    fn new(script: CompiledScriptMut, modules: &[CompiledModule]) -> ScriptScope {
+    fn new(
+        script: CompiledScriptMut,
+        modules: impl IntoIterator<Item = &'a CompiledModule>,
+    ) -> Self {
         ScriptScope {
             compilation_scope: CompilationScope::new(modules),
             script,
         }
     }
+}
 
-    fn add_item<T>(item: T, table: &mut Vec<T>) -> Result<TableIndex> {
-        let size = table.len();
-        if size >= TABLE_MAX_SIZE {
-            bail!("Max table size reached!")
-        }
-        table.push(item);
-        Ok(size as TableIndex)
+fn add_item<U>(item: U, table: &mut Vec<U>) -> Result<TableIndex> {
+    let size = table.len();
+    if size >= TABLE_MAX_SIZE {
+        bail!("Max table size reached!")
     }
+    table.push(item);
+    Ok(size as TableIndex)
 }
 
 trait Scope {
@@ -442,6 +441,7 @@ trait Scope {
     fn link_module(
         &mut self,
         import_name: &str,
+        addr: &AccountAddress,
         module_name: &str,
         mh_idx: ModuleHandleIndex,
     ) -> Result<()>;
@@ -475,32 +475,30 @@ trait Scope {
 
 impl<'a> Scope for ModuleScope<'a> {
     fn make_string(&mut self, s: String) -> Result<StringPoolIndex> {
-        ModuleScope::add_item(s, &mut self.module.string_pool).map(StringPoolIndex::new)
+        add_item(s, &mut self.module.string_pool).map(StringPoolIndex::new)
     }
 
     fn make_byte_array(&mut self, buf: ByteArray) -> Result<ByteArrayPoolIndex> {
-        ModuleScope::add_item(buf, &mut self.module.byte_array_pool).map(ByteArrayPoolIndex::new)
+        add_item(buf, &mut self.module.byte_array_pool).map(ByteArrayPoolIndex::new)
     }
 
     fn make_address(&mut self, addr: AccountAddress) -> Result<AddressPoolIndex> {
-        ModuleScope::add_item(addr, &mut self.module.address_pool).map(AddressPoolIndex::new)
+        add_item(addr, &mut self.module.address_pool).map(AddressPoolIndex::new)
     }
 
     fn make_type_signature(&mut self, sig: TypeSignature) -> Result<TypeSignatureIndex> {
-        ModuleScope::add_item(sig, &mut self.module.type_signatures).map(TypeSignatureIndex::new)
+        add_item(sig, &mut self.module.type_signatures).map(TypeSignatureIndex::new)
     }
 
     fn make_function_signature(
         &mut self,
         sig: FunctionSignature,
     ) -> Result<FunctionSignatureIndex> {
-        ModuleScope::add_item(sig, &mut self.module.function_signatures)
-            .map(FunctionSignatureIndex::new)
+        add_item(sig, &mut self.module.function_signatures).map(FunctionSignatureIndex::new)
     }
 
     fn make_locals_signature(&mut self, sig: LocalsSignature) -> Result<LocalsSignatureIndex> {
-        ModuleScope::add_item(sig, &mut self.module.locals_signatures)
-            .map(LocalsSignatureIndex::new)
+        add_item(sig, &mut self.module.locals_signatures).map(LocalsSignatureIndex::new)
     }
 
     fn make_module_handle(
@@ -550,7 +548,7 @@ impl<'a> Scope for ModuleScope<'a> {
             name: name_idx,
             signature: sig_idx,
         };
-        ModuleScope::add_item(fh, &mut self.module.function_handles).map(FunctionHandleIndex::new)
+        add_item(fh, &mut self.module.function_handles).map(FunctionHandleIndex::new)
     }
 
     fn publish_struct_def(
@@ -615,11 +613,12 @@ impl<'a> Scope for ModuleScope<'a> {
     fn link_module(
         &mut self,
         import_name: &str,
+        addr: &AccountAddress,
         module_name: &str,
         mh_idx: ModuleHandleIndex,
     ) -> Result<()> {
         self.compilation_scope
-            .link_module(import_name, module_name, mh_idx)
+            .link_module(import_name, addr, module_name, mh_idx)
     }
 
     fn link_field(
@@ -729,32 +728,30 @@ impl<'a> Scope for ModuleScope<'a> {
 
 impl<'a> Scope for ScriptScope<'a> {
     fn make_string(&mut self, s: String) -> Result<StringPoolIndex> {
-        ScriptScope::add_item(s, &mut self.script.string_pool).map(StringPoolIndex::new)
+        add_item(s, &mut self.script.string_pool).map(StringPoolIndex::new)
     }
 
     fn make_byte_array(&mut self, buf: ByteArray) -> Result<ByteArrayPoolIndex> {
-        ScriptScope::add_item(buf, &mut self.script.byte_array_pool).map(ByteArrayPoolIndex::new)
+        add_item(buf, &mut self.script.byte_array_pool).map(ByteArrayPoolIndex::new)
     }
 
     fn make_address(&mut self, addr: AccountAddress) -> Result<AddressPoolIndex> {
-        ScriptScope::add_item(addr, &mut self.script.address_pool).map(AddressPoolIndex::new)
+        add_item(addr, &mut self.script.address_pool).map(AddressPoolIndex::new)
     }
 
     fn make_type_signature(&mut self, sig: TypeSignature) -> Result<TypeSignatureIndex> {
-        ScriptScope::add_item(sig, &mut self.script.type_signatures).map(TypeSignatureIndex::new)
+        add_item(sig, &mut self.script.type_signatures).map(TypeSignatureIndex::new)
     }
 
     fn make_function_signature(
         &mut self,
         sig: FunctionSignature,
     ) -> Result<FunctionSignatureIndex> {
-        ModuleScope::add_item(sig, &mut self.script.function_signatures)
-            .map(FunctionSignatureIndex::new)
+        add_item(sig, &mut self.script.function_signatures).map(FunctionSignatureIndex::new)
     }
 
     fn make_locals_signature(&mut self, sig: LocalsSignature) -> Result<LocalsSignatureIndex> {
-        ModuleScope::add_item(sig, &mut self.script.locals_signatures)
-            .map(LocalsSignatureIndex::new)
+        add_item(sig, &mut self.script.locals_signatures).map(LocalsSignatureIndex::new)
     }
 
     fn make_module_handle(
@@ -804,7 +801,7 @@ impl<'a> Scope for ScriptScope<'a> {
             name: name_idx,
             signature: sig_idx,
         };
-        ScriptScope::add_item(fh, &mut self.script.function_handles).map(FunctionHandleIndex::new)
+        add_item(fh, &mut self.script.function_handles).map(FunctionHandleIndex::new)
     }
 
     fn publish_struct_def(
@@ -834,11 +831,12 @@ impl<'a> Scope for ScriptScope<'a> {
     fn link_module(
         &mut self,
         import_name: &str,
+        addr: &AccountAddress,
         module_name: &str,
         mh_idx: ModuleHandleIndex,
     ) -> Result<()> {
         self.compilation_scope
-            .link_module(import_name, module_name, mh_idx)
+            .link_module(import_name, addr, module_name, mh_idx)
     }
 
     fn link_field(
@@ -930,13 +928,25 @@ const TABLE_MAX_SIZE: usize = u16::max_value() as usize;
 //
 
 /// Compile a module
-pub fn compile_module(
+pub fn compile_module<'a, T: 'a + ModuleAccess>(
     address: &AccountAddress,
     module: &ModuleDefinition,
-    modules: &[CompiledModule],
+    modules: impl IntoIterator<Item = &'a T>,
 ) -> Result<CompiledModule> {
+    // Convert to &CompiledModule as that's what's used throughout internally.
+    let modules = modules.into_iter().map(|module| module.as_module());
+
     let compiled_module = CompiledModuleMut::default();
     let scope = ModuleScope::new(compiled_module, modules);
+    // This is separate to avoid unnecessary code gen due to monomorphization.
+    compile_module_impl(address, module, scope)
+}
+
+fn compile_module_impl<'a>(
+    address: &AccountAddress,
+    module: &ModuleDefinition,
+    scope: ModuleScope<'a>,
+) -> Result<CompiledModule> {
     let mut compiler = Compiler::new(scope);
     let addr_idx = compiler.make_address(&address)?;
     let name_idx = compiler.make_string(module.name.name_ref())?;
@@ -978,44 +988,46 @@ pub fn compile_module(
         .map_err(|errs| InternalCompilerError::BoundsCheckErrors(errs).into())
 }
 
-/// Compile a module and invoke the bytecode verifier on it
-pub fn compile_and_verify_module(
-    address: &AccountAddress,
-    module: &ModuleDefinition,
-    modules: &[CompiledModule],
-) -> Result<(CompiledModule, Vec<VerificationError>)> {
-    let compiled_module = compile_module(address, module, modules)?;
-    let (compiled_module, verification_errors) = verify_module(compiled_module);
-    if verification_errors.is_empty() {
-        let (compiled_module, verification_errors) =
-            verify_module_dependencies(compiled_module, modules);
-        Ok((compiled_module, verification_errors))
-    } else {
-        Ok((compiled_module, verification_errors))
-    }
-}
-
 //
 // Transaction/Script compilation
 //
 
 /// Compile a transaction program
-pub fn compile_program(
+pub fn compile_program<'a, T: 'a + ModuleAccess>(
     address: &AccountAddress,
     program: &Program,
-    deps: &[CompiledModule],
+    deps: impl IntoIterator<Item = &'a T>,
+) -> Result<CompiledProgram> {
+    // Normalize into a Vec<&CompiledModule>.
+    let deps: Vec<&CompiledModule> = deps.into_iter().map(|dep| dep.as_module()).collect();
+
+    // This is separate to avoid unnecessary code gen due to monomorphization.
+    compile_program_impl(address, program, deps)
+}
+
+fn compile_program_impl(
+    address: &AccountAddress,
+    program: &Program,
+    deps: Vec<&CompiledModule>,
 ) -> Result<CompiledProgram> {
     // Compile modules in the program
-    let mut deps: Vec<CompiledModule> = deps.to_vec();
-    let n_external_deps = deps.len();
+    let mut modules = vec![];
     for m in &program.modules {
-        deps.push(compile_module(address, &m, &deps)?);
+        let module = {
+            let deps = deps.iter().copied().chain(&modules);
+            compile_module(address, &m, deps)?
+        };
+        modules.push(module);
     }
 
     // Compile transaction script
     let func_def: FunctionDefinition;
     let compiled_script = CompiledScriptMut::default();
-    let scope = ScriptScope::new(compiled_script, &deps);
+
+    let scope = {
+        let deps = deps.iter().copied().chain(&modules);
+        ScriptScope::new(compiled_script, deps)
+    };
     let mut compiler = Compiler::new(scope);
     let addr_idx = compiler.make_address(&address)?;
     let name_idx = compiler.make_string(SELF_MODULE_NAME)?;
@@ -1042,10 +1054,7 @@ pub fn compile_program(
         Err(errs) => bail_err!(InternalCompilerError::BoundsCheckErrors(errs)),
     };
 
-    Ok(CompiledProgram::new(
-        deps[n_external_deps..].to_vec(),
-        script,
-    ))
+    Ok(CompiledProgram::new(modules, script))
 }
 
 impl<S: Scope + Sized> Compiler<S> {
@@ -1075,7 +1084,7 @@ impl<S: Scope + Sized> Compiler<S> {
         let name_idx = self.make_string(&name)?;
         let mh_idx = self.make_module_handle(addr_idx, name_idx)?;
         self.scope
-            .link_module(module_alias.name_ref(), name, mh_idx)
+            .link_module(module_alias.name_ref(), address, name, mh_idx)
     }
 
     fn import_signature_token(
@@ -1090,21 +1099,24 @@ impl<S: Scope + Sized> Compiler<S> {
             | SignatureToken::ByteArray
             | SignatureToken::Address => Ok(sig_token),
             SignatureToken::Struct(sh_idx) => {
-                let (defining_module_name, name, is_resource) = {
-                    let module = self.scope.get_imported_module(module_name)?;
-                    let struct_handle = module.struct_handle_at(sh_idx);
-                    let defining_module_handle = module.module_handle_at(struct_handle.module);
-                    (
-                        module.string_at(defining_module_handle.name),
-                        module.string_at(struct_handle.name).to_string(),
-                        struct_handle.is_resource,
-                    )
-                };
-                let mh_idx = self
-                    .scope
-                    .get_imported_module_handle(defining_module_name)?;
-                let name_idx = self.make_string(&name)?;
-                let local_sh_idx = self.make_struct_handle(mh_idx, name_idx, is_resource)?;
+                let module = self.scope.get_imported_module(module_name)?;
+                let struct_handle = module.struct_handle_at(sh_idx);
+                let defining_module_handle = module.module_handle_at(struct_handle.module);
+                let is_resource = struct_handle.is_resource;
+
+                let struct_name = module.string_at(struct_handle.name).to_string();
+                let defining_module_name =
+                    module.string_at(defining_module_handle.name).to_string();
+                let defining_module_addr = *module.address_at(defining_module_handle.address);
+
+                let name_idx = self.make_string(&struct_name)?;
+                let defining_module_name_idx = self.make_string(&defining_module_name)?;
+                let defining_module_addr_idx = self.make_address(&defining_module_addr)?;
+                let defining_module_handle_idx =
+                    self.make_module_handle(defining_module_addr_idx, defining_module_name_idx)?;
+
+                let local_sh_idx =
+                    self.make_struct_handle(defining_module_handle_idx, name_idx, is_resource)?;
                 Ok(SignatureToken::Struct(local_sh_idx))
             }
             SignatureToken::Reference(sub_sig_token) => Ok(SignatureToken::Reference(Box::new(
@@ -2166,7 +2178,6 @@ impl<S: Scope + Sized> Compiler<S> {
                     ModuleHandleIndex::new(0)
                 } else {
                     let target_module = self.scope.get_imported_module(module.name_ref())?;
-
                     let mut idx = 0;
                     while idx < target_module.function_defs().len() {
                         let fh_idx = target_module
