@@ -97,6 +97,7 @@ fn main() -> std::io::Result<()> {
         .mount(
             "/",
             routes![
+                handlers::create_next_account,
                 handlers::get_latest_account_state,
                 handlers::mint_coins,
                 handlers::transfer_coins,

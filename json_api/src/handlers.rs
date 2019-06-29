@@ -4,9 +4,6 @@ use rocket_contrib::json::Json;
 use serde_json::{json, Value as JsonValue};
 
 use client::client_proxy::ClientProxy;
-use client::AccountData;
-use types::account_address::AccountAddress;
-use types::account_config::AccountResource;
 
 use crate::{error::Result, serializers::*};
 
@@ -14,6 +11,19 @@ use crate::{error::Result, serializers::*};
 
 pub struct AppState {
     pub proxy: ClientProxy,
+}
+
+#[post("/create_next_account")]
+pub fn create_next_account(state: State<Mutex<AppState>>) -> Result<Json<JsonValue>> {
+    let proxy = &mut state.lock().proxy;
+
+    let acc = proxy.create_next_account()?;
+    
+    Ok(Json(json!({
+        "address": acc.address,
+        "index": acc.index,
+        "success": true,
+    })))
 }
 
 #[get("/get_latest_account_state/<addr>")]
