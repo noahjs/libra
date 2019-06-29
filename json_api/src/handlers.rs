@@ -4,25 +4,24 @@ use rocket_contrib::json::Json;
 use serde_json::{json, Value as JsonValue};
 
 use client::client_proxy::ClientProxy;
+use client::AccountData;
+use types::account_address::AccountAddress;
+use types::account_config::AccountResource;
 
 use crate::{error::Result, serializers::*};
 
+// TODO: Refactor to support multiple clients.
+
 pub struct AppState {
-    // TODO: A pool of client proxies can be used instead of a mutex if needed.
     pub proxy: ClientProxy,
 }
 
-#[derive(Serialize)]
-pub struct BalanceRes {
-    balance: String,
-}
-
-#[get("/get_balance/<addr>")]
-pub fn get_balance(state: State<Mutex<AppState>>, addr: String) -> Result<Json<BalanceRes>> {
+#[get("/get_latest_account_state/<addr>")]
+pub fn get_latest_account_state(state: State<Mutex<AppState>>, addr: String) -> Result<Json<AccountResourceSer>> {
     let proxy = &mut state.lock().proxy;
-    let balance = proxy.get_balance_alt(&addr)?;
-
-    Ok(Json(BalanceRes { balance }))
+    let state = proxy.get_latest_account_resource(&addr)?;
+    
+    Ok(Json(state.into()))
 }
 
 #[derive(FromForm)]
@@ -146,49 +145,3 @@ pub fn get_events_by_account_and_type(
 //pub fn create_submit_transaction_req() {
 //
 //}
-
-/*
-// Phase 1
-// This Function will be rewritten to expose the Full Account object as json
-pub fn get_balance(&mut self, space_delim_strings: &[&str]) -> Result<f64> {
-
-pub fn mint_coins(&mut self, space_delim_strings: &[&str], is_blocking: bool) -> Result<()> {
-
-pub fn transfer_coins_int(
-&mut self,
-sender_account_ref_id: usize,
-receiver_address: &AccountAddress,
-num_coins: u64,
-gas_unit_price: Option<u64>,
-max_gas_amount: Option<u64>,
-is_blocking: bool,
-) -> Result<IndexAndSequence> {
-
-
-pub fn get_committed_txn_by_acc_seq(
-&mut self,
-space_delim_strings: &[&str],
-) -> Result<Option<(SignedTransaction, Option<Vec<ContractEvent>>)>> {
-
-pub fn get_committed_txn_by_range(
-&mut self,
-space_delim_strings: &[&str],
-) -> Result<Vec<(SignedTransaction, Option<Vec<ContractEvent>>)>> {
-
-pub fn get_events_by_account_and_type(
-&mut self,
-space_delim_strings: &[&str],
-) -> Result<(Vec<EventWithProof>, Option<AccountStateWithProof>)> {
-
-
-
-
-// PHASE 2
-pub fn create_submit_transaction_req(
-&self,
-program: Program,
-sender_account: &AccountData,
-gas_unit_price: Option<u64>,
-max_gas_amount: Option<u64>,
-) -> Result<SubmitTransactionRequest> {
-*/

@@ -8,9 +8,32 @@ use types::{
     contract_event::{ContractEvent, EventWithProof},
     proof::{AccountStateProof, AccumulatorProof, EventProof, SparseMerkleProof},
     transaction::{SignedTransaction, TransactionInfo, Version},
+    account_config::AccountResource,
+    byte_array::ByteArray,
 };
 
 // Pure insanity. Might be better to add derive(Serialize) to all definitions.
+
+#[derive(Serialize)]
+pub struct AccountResourceSer {
+    pub balance: u64,
+    pub sequence_number: u64,
+    pub authentication_key: ByteArray,
+    pub sent_events_count: u64,
+    pub received_events_count: u64,
+}
+
+impl From<AccountResource> for AccountResourceSer {
+    fn from(acc: AccountResource) -> Self {
+        AccountResourceSer {
+            balance: acc.balance(),
+            sequence_number: acc.sequence_number(),
+            authentication_key: acc.authentication_key().clone(),
+            sent_events_count: acc.sent_events_count(),
+            received_events_count: acc.received_events_count(),
+        }
+    }
+}
 
 #[derive(Serialize)]
 pub struct TxWithEvents {

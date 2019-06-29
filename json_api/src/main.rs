@@ -97,7 +97,7 @@ fn main() -> std::io::Result<()> {
         .mount(
             "/",
             routes![
-                handlers::get_balance,
+                handlers::get_latest_account_state,
                 handlers::mint_coins,
                 handlers::transfer_coins,
                 handlers::get_committed_txn_by_acc_seq,
