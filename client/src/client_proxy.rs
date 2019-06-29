@@ -90,7 +90,21 @@ pub struct ClientProxy {
 }
 
 impl ClientProxy {
-    /// Version of [`ClientProxy::get_balance()`](ClientProxy::get_balance()) with explicit arguments.
+    // =============================== Methods for JSON API ========================================
+
+    /// Get the latest account state from validator.
+    pub fn get_latest_account_resource(
+        &mut self,
+        address: &str,
+    ) -> Result<AccountResource> {
+        let account = self.get_account_address_from_parameter(address)?;
+        self.get_account_state_and_update(account)
+            .and_then(|(blob, _)| {
+                get_account_resource_or_default(&blob)
+            })
+    }
+    
+    /// Version of [`ClientProxy::get_balance()`] with explicit arguments.
     pub fn get_balance_alt(&mut self, address: &str) -> Result<String> {
         let address = self.get_account_address_from_parameter(address)?;
         self.get_account_resource_and_update(address).map(|res| {
@@ -100,7 +114,7 @@ impl ClientProxy {
         })
     }
     
-    /// Version of [`ClientProxy::mint_coins()`](ClientProxy::mint_coins()) with explicit arguments.
+    /// Version of [`ClientProxy::mint_coins()`] with explicit arguments.
     pub fn mint_coins_alt(&mut self, address: &str, amount: &str) -> Result<()> {
         let receiver = self.get_account_address_from_parameter(address)?;
         let num_coins = Self::convert_to_micro_libras(amount)?;
@@ -112,7 +126,7 @@ impl ClientProxy {
         }
     }
 
-    /// Version of [`ClientProxy::transfer_coins()`](ClientProxy::transfer_coins()) with explicit arguments
+    /// Version of [`ClientProxy::transfer_coins()`] with explicit arguments
     pub fn transfer_coins_alt(
         &mut self,
         sender: &str,
@@ -125,16 +139,7 @@ impl ClientProxy {
             self.get_account_address_from_parameter(sender)?;
         let receiver_address = self.get_account_address_from_parameter(receiver)?;
         let num_coins = Self::convert_to_micro_libras(num_coins)?;
-        let sender_account_ref_id = *self
-            .address_to_ref_id
-            .get(&sender_account_address)
-            .ok_or_else(|| {
-                format_err!(
-                    "Unable to find existing managing account by address: {}, to see all existing \
-                     accounts, run: 'account list'",
-                    sender_account_address
-                )
-            })?;
+        let sender_account_ref_id = self.ref_id_by_address(&sender_account_address)?;
 
         let is_blocking = true;
 
@@ -148,7 +153,7 @@ impl ClientProxy {
         )
     }
 
-    /// Version of [`ClientProxy::get_committed_txn_by_acc_seq()`](ClientProxy::get_committed_txn_by_acc_seq()) with explicit arguments.
+    /// Version of [`ClientProxy::get_committed_txn_by_acc_seq()`] with explicit arguments.
     pub fn get_committed_txn_by_acc_seq_alt(
         &mut self,
         address: &str,
@@ -161,7 +166,7 @@ impl ClientProxy {
             .get_txn_by_acc_seq(account, sequence_number, fetch_events)
     }
 
-    /// Version of [`ClientProxy::get_events_by_account_and_type()`](ClientProxy::get_events_by_account_and_type()) with explicit arguments.
+    /// Version of [`ClientProxy::get_events_by_account_and_type()`] with explicit arguments.
     pub fn get_events_by_account_and_type_alt(
         &mut self,
         address: &str,
@@ -186,6 +191,48 @@ impl ClientProxy {
         self.client
             .get_events_by_access_path(access_path, start_seq_number, ascending, limit)
     }
+    
+    /// Get account id by address.
+    pub fn ref_id_by_address(&self, address: &AccountAddress) -> Result<usize> {
+        self
+            .address_to_ref_id
+            .get(address)
+            .cloned()
+            .ok_or_else(|| {
+                format_err!(
+                    "Unable to find existing managing account by address: {}, to see all existing \
+                     accounts, run: 'account list'",
+                    address
+                )
+            })
+    }
+
+    /// Get account data by account id.
+    pub fn account(&self, ref_id: usize) -> Result<&AccountData> {
+        self
+            .accounts
+            .get(ref_id)
+            .ok_or_else(|| {
+                format_err!("Unable to find sender account: {}", ref_id)
+            })
+    }
+    
+    /// Get mutable account data by account id.
+    pub fn account_mut(&mut self, ref_id: usize) -> Result<&mut AccountData> {
+        self
+            .accounts
+            .get_mut(ref_id)
+            .ok_or_else(|| {
+                format_err!("Unable to find sender account: {}", ref_id)
+            })
+    }
+    
+    /// Public version of [`ClientProxy::convert_to_micro_libras()`].
+    pub fn convert_to_micro_libras_alt(input: &str) -> Result<u64> {
+        Self::convert_to_micro_libras(input)
+    }
+    
+    // ==================================== Original code ==========================================
     
     /// Construct a new TestClient.
     pub fn new(
