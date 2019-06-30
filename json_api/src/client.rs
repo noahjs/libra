@@ -1,21 +1,22 @@
 use chrono::Utc;
+use futures::Future;
+use futures::stream::Stream;
+use protobuf::Message;
 
 use admission_control_proto::proto::admission_control::SubmitTransactionRequest;
 use crypto::signing::{KeyPair, sign_message};
 use crypto::PrivateKey;
 use crypto::hash::CryptoHash;
-use client::AccountData;
-use failure_ext::Result;
+use failure_ext::prelude::*;
 use libra_wallet::{WalletLibrary, Mnemonic};
-use libra_wallet::key_factory::{ChildNumber, ExtendedPrivKey};
-use proto_conv::IntoProto;
+use libra_wallet::key_factory::{ChildNumber};
 use types::{
     transaction::{RawTransaction, SignedTransaction, RawTransactionBytes, Program},
     proto::transaction::SignedTransaction as ProtoSignedTransaction,
 };
-
-use crate::state::AppState;
+use proto_conv::{IntoProto, FromProto};
 use types::account_address::AccountAddress;
+
 
 pub enum Client {
     Wallet(WalletLibrary, ChildNumber),
@@ -27,11 +28,11 @@ impl Client {
         let mnemonic = Mnemonic::from(mnemonic)?;
         let wallet = WalletLibrary::new_from_mnemonic(mnemonic);
 
-        Ok(Client::Wallet(WalletLibrary, child))
+        Ok(Client::Wallet(wallet, child))
     }
     
     pub fn from_private_key(private_key: PrivateKey) -> Self {
-        Ok(Client::KeyPair(KeyPair::new(private_key)))
+        Client::KeyPair(KeyPair::new(private_key))
     }
 
     /// Craft a transaction request.
@@ -69,20 +70,61 @@ impl Client {
             Client::KeyPair(pair) => {
                 let raw_bytes = tx.into_proto().write_to_bytes()?;
                 let txn_hashvalue = RawTransactionBytes(&raw_bytes).hash();
-                let signature = sign_message(txn_hashvalue, pair.private_key());
+                let signature = sign_message(txn_hashvalue, pair.private_key())?;
                 let public_key = pair.public_key();
-
+                
                 let mut signed_txn = ProtoSignedTransaction::new();
                 signed_txn.set_raw_txn_bytes(raw_bytes.to_vec());
-                signed_txn.set_sender_public_key(public_key.to_bytes().to_vec());
-                signed_txn.set_sender_signature(signature.to_bytes().to_vec());
+                signed_txn.set_sender_public_key(public_key.to_slice().to_vec());
+                signed_txn.set_sender_signature(signature.to_compact().to_vec());
 
                 Ok(SignedTransaction::from_proto(signed_txn)?)
             }
-            Client::Wallet(mut wallet, child) => {
+            Client::Wallet(wallet, child) => {
                 wallet.new_address_at_child_number(*child)?;
                 wallet.sign_txn(tx)
+                    .context("Failed to sign transaction with wallet")
+                    .map_err(|err| err.into())
             }
         }
+    }
+}
+
+// TODO: Support local faucet account
+pub struct FaucetClient {
+    pub faucet_url: String,
+}
+
+impl FaucetClient {
+    // TODO(perf): Rewrite in async way (use the global tokio runtime).
+    pub fn mint_coins(&self, receiver: &AccountAddress, num_coins: u64) -> Result<()> {
+        let mut runtime = tokio::runtime::Runtime::new()?;
+        let client = hyper::Client::new();
+
+        let url = format!(
+            "http://{}?amount={}&address={:?}",
+            self.faucet_url, num_coins, receiver
+        )
+            .parse::<hyper::Uri>()?;
+
+        let response = runtime.block_on(client.get(url))?;
+        let status_code = response.status();
+        let body = response.into_body().concat2().wait()?;
+        let raw_data = std::str::from_utf8(&body)?;
+
+        if status_code != 200 {
+            return Err(format_err!(
+                "Failed to query remote faucet server[status={}]: {:?}",
+                status_code,
+                raw_data,
+            ));
+        }
+
+//        let sequence_number = raw_data.parse::<u64>()?;
+//        if is_blocking {
+//            self.wait_for_transaction(AccountAddress::new([0; 32]), sequence_number);
+//        }
+
+        Ok(())
     }
 }

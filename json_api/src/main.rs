@@ -6,19 +6,21 @@ extern crate structopt;
 #[macro_use]
 extern crate serde_derive;
 
-use parking_lot::Mutex;
-
-use client::client_proxy::ClientProxy;
-use logger::set_default_global_logger;
 use structopt::StructOpt;
 
-use crate::handlers::AppState;
+use logger::prelude::*;
+use logger::set_default_global_logger;
+
+
+use crate::state::AppState;
+
 
 mod error;
-mod handlers;
+//mod handlers;
 mod serializers;
 mod client;
 mod state;
+mod grpc_client;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -75,7 +77,7 @@ fn main() -> std::io::Result<()> {
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, &format!("{}", e)[..]))?;
 
     // Test connection to validator
-    let test_ret = client_proxy.test_validator_connection();
+    let test_ret = state.test_validator_connection();
 
     if let Err(e) = test_ret {
         println!(
@@ -83,22 +85,24 @@ fn main() -> std::io::Result<()> {
             args.host, args.port, e
         );
         return Ok(());
+    } else {
+        info!("Connected to validator");
     }
 
     rocket::ignite()
         .manage(state)
-        .mount(
-            "/",
-            routes![
-                handlers::create_next_account,
-                handlers::get_latest_account_state,
-                handlers::mint_coins,
-                handlers::transfer_coins,
-                handlers::get_committed_txn_by_acc_seq,
-                handlers::get_committed_txn_by_range,
-                handlers::get_events_by_account_and_type,
-            ],
-        )
+//        .mount(
+//            "/",
+//            routes![
+//                handlers::create_next_account,
+//                handlers::get_latest_account_state,
+//                handlers::mint_coins,
+//                handlers::transfer_coins,
+//                handlers::get_committed_txn_by_acc_seq,
+//                handlers::get_committed_txn_by_range,
+//                handlers::get_events_by_account_and_type,
+//            ],
+//        )
         .launch();
 
     Ok(())
