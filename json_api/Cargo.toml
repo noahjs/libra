@@ -14,11 +14,18 @@ rocket_contrib = "0.4.1"
 serde_derive = "1.0.94"
 failure = "0.1.5"
 parking_lot = "0.8.0"
+bincode = "1.1.4"
+chrono = "0.4.7"
+tokio = "0.1.21"
+hyper = "0.12.31"
 
 client = { path = "../client" }
+libra_wallet = { path = "../client/libra_wallet" }
+config = { path = "../config" }
 failure_ext = { path = "../common/failure_ext" }
 logger = { path = "../common/logger" }
 crash_handler = { path = "../common/crash_handler" }
 types = { path = "../types" }
 crypto = { path = "../crypto/legacy_crypto" }
 vm_genesis = { path = "../language/vm/vm_genesis" }
+admission_control_proto = { path = "../admission_control/admission_control_proto" }

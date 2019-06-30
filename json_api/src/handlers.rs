@@ -5,13 +5,12 @@ use serde_json::{json, Value as JsonValue};
 
 use client::client_proxy::ClientProxy;
 
+use libra_wallet::{WalletLibrary, Mnemonic};
+
 use crate::{error::Result, serializers::*};
 
-// TODO: Refactor to support multiple clients.
 
-pub struct AppState {
-    pub proxy: ClientProxy,
-}
+// TODO: Refactor to support multiple clients.
 
 #[post("/create_next_account")]
 pub fn create_next_account(state: State<Mutex<AppState>>) -> Result<Json<JsonValue>> {

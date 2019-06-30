@@ -17,7 +17,7 @@ pub mod client_proxy;
 /// Command struct to interact with client.
 pub mod commands;
 /// gRPC client wrapper to connect to validator.
-pub(crate) mod grpc_client;
+pub mod grpc_client;
 pub(crate) mod query_commands;
 pub(crate) mod transfer_commands;
 

@@ -17,6 +17,8 @@ use crate::handlers::AppState;
 mod error;
 mod handlers;
 mod serializers;
+mod client;
+mod state;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -31,13 +33,13 @@ struct Args {
     /// Host address/name to connect to.
     #[structopt(short = "a", long = "host")]
     pub host: String,
-    /// Path to the generated keypair for the faucet account. The faucet account can be used to
-    /// mint coins. If not passed, a new keypair will be generated for
-    /// you and placed in a temporary directory.
-    /// To manually generate a keypair, use generate_keypair:
-    /// `cargo run -p generate_keypair -- -o <output_file_path>`
-    #[structopt(short = "m", long = "faucet_key_file_path")]
-    pub faucet_account_file: Option<String>,
+//    /// Path to the generated keypair for the faucet account. The faucet account can be used to
+//    /// mint coins. If not passed, a new keypair will be generated for
+//    /// you and placed in a temporary directory.
+//    /// To manually generate a keypair, use generate_keypair:
+//    /// `cargo run -p generate_keypair -- -o <output_file_path>`
+//    #[structopt(short = "m", long = "faucet_key_file_path")]
+//    pub faucet_account_file: Option<String>,
     /// Host that operates a faucet service
     /// If not passed, will be derived from host parameter
     #[structopt(short = "f", long = "faucet_server")]
@@ -56,9 +58,6 @@ struct Args {
     /// But the preferred method is to simply use libra-swarm to run local networks
     #[structopt(short = "s", long = "validator_set_file")]
     pub validator_set_file: String,
-    /// If set, client will sync with validator during wallet recovery.
-    #[structopt(short = "r", long = "sync")]
-    pub sync: bool,
 }
 
 fn main() -> std::io::Result<()> {
@@ -66,16 +65,12 @@ fn main() -> std::io::Result<()> {
     crash_handler::setup_panic_handler();
 
     let args = Args::from_args();
-    let faucet_account_file = args.faucet_account_file.unwrap_or_else(|| "".to_string());
 
-    let client_proxy = ClientProxy::new(
+    let state = AppState::new(
         &args.host,
         &args.port,
         &args.validator_set_file,
-        &faucet_account_file,
-        args.sync,
         args.faucet_server,
-        args.mnemonic_file,
     )
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, &format!("{}", e)[..]))?;
 
@@ -91,9 +86,7 @@ fn main() -> std::io::Result<()> {
     }
 
     rocket::ignite()
-        .manage(Mutex::new(AppState {
-            proxy: client_proxy,
-        }))
+        .manage(state)
         .mount(
             "/",
             routes![
