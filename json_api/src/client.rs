@@ -68,17 +68,12 @@ impl Client {
     pub fn sign_txn(&mut self, tx: RawTransaction) -> Result<SignedTransaction> {
         match self {
             Client::KeyPair(pair) => {
-                let raw_bytes = tx.into_proto().write_to_bytes()?;
+                let raw_bytes = tx.clone().into_proto().write_to_bytes()?;
                 let txn_hashvalue = RawTransactionBytes(&raw_bytes).hash();
                 let signature = sign_message(txn_hashvalue, pair.private_key())?;
                 let public_key = pair.public_key();
-                
-                let mut signed_txn = ProtoSignedTransaction::new();
-                signed_txn.set_raw_txn_bytes(raw_bytes.to_vec());
-                signed_txn.set_sender_public_key(public_key.to_slice().to_vec());
-                signed_txn.set_sender_signature(signature.to_compact().to_vec());
 
-                Ok(SignedTransaction::from_proto(signed_txn)?)
+                Ok(SignedTransaction::craft_signed_transaction_for_client(tx, public_key, signature))
             }
             Client::Wallet(wallet, child) => {
                 wallet.new_address_at_child_number(*child)?;
