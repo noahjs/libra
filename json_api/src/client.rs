@@ -85,7 +85,7 @@ impl Client {
 
         state.client.submit_transaction(&tx)?;
 
-        Ok(sequence_number + 1)
+        Ok(sequence_number)
     }
 
     /// Craft a transaction request.
