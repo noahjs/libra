@@ -1,4 +1,4 @@
-use rocket::{request::Form, State};
+use rocket::State;
 use rocket_contrib::json::Json;
 use serde_json::{json, Value as JsonValue};
 
@@ -8,7 +8,7 @@ use types::{
     account_config::{account_received_event_path, account_sent_event_path},
 };
 
-use crate::{client::Client, error::Result, serializers::*, state::AppState, utils};
+use crate::{client::{Client, RawClient}, error::Result, serializers::*, state::AppState, utils};
 
 #[post("/create_wallet")]
 pub fn create_wallet() -> Result<Json<JsonValue>> {
@@ -18,14 +18,14 @@ pub fn create_wallet() -> Result<Json<JsonValue>> {
     Ok(Json(json!({ "mnemonic": mnemonic })))
 }
 
-#[derive(FromForm)]
+#[derive(Deserialize)]
 pub struct CreateWalletAddressData {
     mnemonic: String,
     child_number: u64,
 }
 
 #[post("/create_wallet_account", data = "<data>")]
-pub fn create_wallet_account(data: Form<CreateWalletAddressData>) -> Result<Json<JsonValue>> {
+pub fn create_wallet_account(data: Json<CreateWalletAddressData>) -> Result<Json<JsonValue>> {
     let mut wallet = WalletLibrary::new_from_mnemonic(Mnemonic::from(&data.mnemonic)?);
     let address = wallet.new_address_at_child_number(ChildNumber::new(data.child_number))?;
     let private_key_bytes = wallet
@@ -54,7 +54,7 @@ pub fn get_latest_account_state(
     Ok(Json(account_resource.into()))
 }
 
-#[derive(FromForm)]
+#[derive(Deserialize)]
 pub struct MintCoinsData {
     receiver: String,
     /// In micro libras
@@ -62,14 +62,14 @@ pub struct MintCoinsData {
 }
 
 #[post("/mint_coins", data = "<data>")]
-pub fn mint_coins(state: State<AppState>, data: Form<MintCoinsData>) -> Result<Json<JsonValue>> {
+pub fn mint_coins(state: State<AppState>, data: Json<MintCoinsData>) -> Result<Json<JsonValue>> {
     let receiver = utils::address_from_strings(&data.receiver)?;
     state.faucet_client.mint_coins(&receiver, data.num_coins)?;
 
     Ok(Json(json!({ "success": true })))
 }
 
-#[derive(FromForm)]
+#[derive(Deserialize)]
 pub struct TransferCoinsData {
     sender_addr: String,
     receiver_addr: String,
@@ -78,18 +78,17 @@ pub struct TransferCoinsData {
     max_gas_amount: Option<u64>,
 
     // authorization
-    private_key: Option<String>,
-    mnemonic: Option<String>,
-    child_number: Option<u64>,
+    #[serde(flatten)]
+    raw_client: RawClient,
 }
 
 #[post("/transfer_coins", data = "<data>")]
 pub fn transfer_coins(
     state: State<AppState>,
-    data: Form<TransferCoinsData>,
+    data: Json<TransferCoinsData>,
 ) -> Result<Json<JsonValue>> {
     let mut client =
-        Client::from_form_fields(&data.private_key, &data.mnemonic, data.child_number)?;
+        Client::from_raw(&data.raw_client)?;
     let sender = utils::address_from_strings(&data.sender_addr)?;
     let receiver = utils::address_from_strings(&data.receiver_addr)?;
 

@@ -18,31 +18,38 @@ use types::{
 
 use crate::state::AppState;
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum RawClient {
+    Wallet {
+        mnemonic: String,
+        child_number: u64,
+    },
+    KeyPair {
+        private_key: String,
+    }
+}
+
 pub enum Client {
     Wallet(WalletLibrary, ChildNumber),
     KeyPair(KeyPair),
 }
 
 impl Client {
-    pub fn from_form_fields(
-        private_key: &Option<String>,
-        mnemonic: &Option<String>,
-        child_number: Option<u64>,
-    ) -> Result<Self> {
-        if let Some(private_key) = private_key {
-            let private_key: PrivateKey = hex::decode(private_key)
-                .context("Failed to decode private key")
-                .and_then(|bytes| {
-                    bincode::deserialize(&bytes).context("Failed to deserialize private key")
-                })?;
-
-            Ok(Client::from_private_key(private_key))
-        } else if let (Some(mnemonic), Some(child_number)) = (mnemonic, child_number) {
-            Client::from_mnemonic(&mnemonic, ChildNumber::new(child_number))
-        } else {
-            Err(format_err!(
-                "Either private key, or pair mnemonic/child number  must be present"
-            ))
+    pub fn from_raw(raw: &RawClient) -> Result<Self> {
+        match raw {
+            RawClient::Wallet { mnemonic, child_number } => {
+                Client::from_mnemonic(mnemonic, ChildNumber::new(*child_number))
+            }
+            RawClient::KeyPair { private_key } => {
+                let private_key: PrivateKey = hex::decode(private_key)
+                    .context("Failed to decode private key")
+                    .and_then(|bytes| {
+                        bincode::deserialize(&bytes).context("Failed to deserialize private key")
+                    })?;
+                
+                Ok(Client::from_private_key(private_key))
+            }
         }
     }
 
