@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, type_alias_enum_variants)]
 
 #[macro_use]
 extern crate rocket;
@@ -8,19 +8,18 @@ extern crate serde_derive;
 
 use structopt::StructOpt;
 
-use logger::prelude::*;
-use logger::set_default_global_logger;
-
+use logger::{prelude::*, set_default_global_logger};
 
 use crate::state::AppState;
 
-
-mod error;
-//mod handlers;
-mod serializers;
 mod client;
-mod state;
+mod error;
+#[allow(dead_code)]
 mod grpc_client;
+mod handlers;
+mod serializers;
+mod state;
+mod utils;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -35,13 +34,13 @@ struct Args {
     /// Host address/name to connect to.
     #[structopt(short = "a", long = "host")]
     pub host: String,
-//    /// Path to the generated keypair for the faucet account. The faucet account can be used to
-//    /// mint coins. If not passed, a new keypair will be generated for
-//    /// you and placed in a temporary directory.
-//    /// To manually generate a keypair, use generate_keypair:
-//    /// `cargo run -p generate_keypair -- -o <output_file_path>`
-//    #[structopt(short = "m", long = "faucet_key_file_path")]
-//    pub faucet_account_file: Option<String>,
+    //    /// Path to the generated keypair for the faucet account. The faucet account can be used
+    // to    /// mint coins. If not passed, a new keypair will be generated for
+    //    /// you and placed in a temporary directory.
+    //    /// To manually generate a keypair, use generate_keypair:
+    //    /// `cargo run -p generate_keypair -- -o <output_file_path>`
+    //    #[structopt(short = "m", long = "faucet_key_file_path")]
+    //    pub faucet_account_file: Option<String>,
     /// Host that operates a faucet service
     /// If not passed, will be derived from host parameter
     #[structopt(short = "f", long = "faucet_server")]
@@ -91,18 +90,19 @@ fn main() -> std::io::Result<()> {
 
     rocket::ignite()
         .manage(state)
-//        .mount(
-//            "/",
-//            routes![
-//                handlers::create_next_account,
-//                handlers::get_latest_account_state,
-//                handlers::mint_coins,
-//                handlers::transfer_coins,
-//                handlers::get_committed_txn_by_acc_seq,
-//                handlers::get_committed_txn_by_range,
-//                handlers::get_events_by_account_and_type,
-//            ],
-//        )
+        .mount(
+            "/",
+            routes![
+                handlers::create_wallet,
+                handlers::create_wallet_account,
+                handlers::get_latest_account_state,
+                handlers::mint_coins,
+                handlers::transfer_coins,
+                handlers::get_committed_txn_by_acc_seq,
+                handlers::get_committed_txn_by_range,
+                handlers::get_events_by_account_and_type,
+            ],
+        )
         .launch();
 
     Ok(())

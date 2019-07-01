@@ -55,10 +55,8 @@ impl GRPCClient {
         })
     }
 
-    /// Submits a transaction and bumps the sequence number for the sender
     pub fn submit_transaction(
         &self,
-        sender: AccountAddress,
         req: &SubmitTransactionRequest,
     ) -> Result<()> {
         let mut resp = self.submit_transaction_opt(req);

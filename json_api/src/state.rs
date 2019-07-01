@@ -1,13 +1,10 @@
-use std::sync::Arc;
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
-use failure_ext::prelude::*;
 use config::trusted_peers::TrustedPeersConfig;
-use types::account_address::AccountAddress;
+use failure_ext::prelude::*;
 use types::validator_verifier::ValidatorVerifier;
 
-use crate::grpc_client::GRPCClient;
-use crate::client::FaucetClient;
+use crate::{client::FaucetClient, grpc_client::GRPCClient};
 
 pub struct AppState {
     pub client: GRPCClient,
@@ -24,12 +21,12 @@ impl AppState {
     ) -> Result<Self> {
         let validators_config = TrustedPeersConfig::load_config(Path::new(validator_set_file));
         let validators = validators_config.get_trusted_consensus_peers();
-        
+
         ensure!(
             !validators.is_empty(),
             "Not able to load validators from trusted peers config!"
         );
-        
+
         // Total 3f + 1 validators, 2f + 1 correct signatures are required.
         // If < 4 validators, all validators have to agree.
         let quorum_size = validators.len() * 2 / 3 + 1;
@@ -43,9 +40,7 @@ impl AppState {
 
         Ok(AppState {
             client,
-            faucet_client: FaucetClient {
-                faucet_url,
-            },
+            faucet_client: FaucetClient { faucet_url },
         })
     }
 

@@ -1,52 +1,70 @@
-use parking_lot::Mutex;
 use rocket::{request::Form, State};
 use rocket_contrib::json::Json;
 use serde_json::{json, Value as JsonValue};
 
-use client::client_proxy::ClientProxy;
+use libra_wallet::{key_factory::ChildNumber, Mnemonic, WalletLibrary};
+use types::{
+    access_path::AccessPath,
+    account_config::{account_received_event_path, account_sent_event_path},
+};
 
-use libra_wallet::{WalletLibrary, Mnemonic};
+use crate::{client::Client, error::Result, serializers::*, state::AppState, utils};
 
-use crate::{error::Result, serializers::*};
+#[post("/create_wallet")]
+pub fn create_wallet() -> Result<Json<JsonValue>> {
+    let wallet = WalletLibrary::new();
+    let mnemonic = wallet.mnemonic();
 
+    Ok(Json(json!({ "mnemonic": mnemonic })))
+}
 
-// TODO: Refactor to support multiple clients.
+#[derive(FromForm)]
+pub struct CreateWalletAddressData {
+    mnemonic: String,
+    child_number: u64,
+}
 
-#[post("/create_next_account")]
-pub fn create_next_account(state: State<Mutex<AppState>>) -> Result<Json<JsonValue>> {
-    let proxy = &mut state.lock().proxy;
+#[post("/create_wallet_account", data = "<data>")]
+pub fn create_wallet_account(data: Form<CreateWalletAddressData>) -> Result<Json<JsonValue>> {
+    let mut wallet = WalletLibrary::new_from_mnemonic(Mnemonic::from(&data.mnemonic)?);
+    let address = wallet.new_address_at_child_number(ChildNumber::new(data.child_number))?;
+    let private_key_bytes = wallet
+        .get_child_private_key(ChildNumber::new(data.child_number))?
+        .get_private()
+        .to_bytes();
 
-    let acc = proxy.create_next_account()?;
-    
+    let private_key_hex = hex::encode(private_key_bytes);
+
     Ok(Json(json!({
-        "address": format!("{}", &acc.address),
-        "index": acc.index,
-        "success": true,
+        "address": format!("{}", &address),
+        "child_number": data.child_number,
+        "private_key": private_key_hex,
     })))
 }
 
 #[get("/get_latest_account_state/<addr>")]
-pub fn get_latest_account_state(state: State<Mutex<AppState>>, addr: String) -> Result<Json<AccountResourceSer>> {
-    let proxy = &mut state.lock().proxy;
-    let state = proxy.get_latest_account_resource(&addr)?;
-    
-    Ok(Json(state.into()))
+pub fn get_latest_account_state(
+    state: State<AppState>,
+    addr: String,
+) -> Result<Json<AccountResourceSer>> {
+    let address = utils::address_from_strings(&addr)?;
+    let account_blob = state.client.get_account_blob(address)?.0;
+    let account_resource = utils::get_account_resource_or_default(&account_blob)?;
+
+    Ok(Json(account_resource.into()))
 }
 
 #[derive(FromForm)]
 pub struct MintCoinsData {
     receiver: String,
-    num_coins: String,
+    /// In micro libras
+    num_coins: u64,
 }
 
 #[post("/mint_coins", data = "<data>")]
-pub fn mint_coins(
-    state: State<Mutex<AppState>>,
-    data: Form<MintCoinsData>,
-) -> Result<Json<JsonValue>> {
-    let proxy = &mut state.lock().proxy;
-
-    proxy.mint_coins_alt(&data.receiver, &data.num_coins)?;
+pub fn mint_coins(state: State<AppState>, data: Form<MintCoinsData>) -> Result<Json<JsonValue>> {
+    let receiver = utils::address_from_strings(&data.receiver)?;
+    state.faucet_client.mint_coins(&receiver, data.num_coins)?;
 
     Ok(Json(json!({ "success": true })))
 }
@@ -55,44 +73,53 @@ pub fn mint_coins(
 pub struct TransferCoinsData {
     sender_addr: String,
     receiver_addr: String,
-    num_coins: String,
+    num_coins: u64,
     gas_unit_price: Option<u64>,
     max_gas_amount: Option<u64>,
+
+    // authorization
+    private_key: Option<String>,
+    mnemonic: Option<String>,
+    child_number: Option<u64>,
 }
 
 #[post("/transfer_coins", data = "<data>")]
 pub fn transfer_coins(
-    state: State<Mutex<AppState>>,
+    state: State<AppState>,
     data: Form<TransferCoinsData>,
 ) -> Result<Json<JsonValue>> {
-    let proxy = &mut state.lock().proxy;
+    let mut client =
+        Client::from_form_fields(&data.private_key, &data.mnemonic, data.child_number)?;
+    let sender = utils::address_from_strings(&data.sender_addr)?;
+    let receiver = utils::address_from_strings(&data.receiver_addr)?;
 
-    let result = proxy.transfer_coins_alt(
-        &data.sender_addr,
-        &data.receiver_addr,
-        &data.num_coins,
+    let result = client.transfer_coins(
+        &state,
+        sender,
+        receiver,
+        data.num_coins,
         data.gas_unit_price,
         data.max_gas_amount,
     )?;
 
     Ok(Json(json!({
         "success": true,
-        "index": result.account_index,
-        "sequence": result.sequence_number,
+        "sequence": result,
     })))
 }
 
 #[get("/get_committed_txn_by_acc_seq/<addr>?<sequence_number>&<fetch_events>")]
 pub fn get_committed_txn_by_acc_seq(
-    state: State<Mutex<AppState>>,
+    state: State<AppState>,
     addr: String,
     sequence_number: u64,
     fetch_events: bool,
 ) -> Result<Json<Vec<TxWithEvents>>> {
-    let proxy = &mut state.lock().proxy;
+    let address = utils::address_from_strings(&addr)?;
 
-    proxy
-        .get_committed_txn_by_acc_seq_alt(&addr, sequence_number, fetch_events)
+    state
+        .client
+        .get_txn_by_acc_seq(address, sequence_number, fetch_events)
         .map(|val| {
             let transactions = val
                 .into_iter()
@@ -106,17 +133,15 @@ pub fn get_committed_txn_by_acc_seq(
         })
         .map_err(|err| From::from(err))
 }
-
+//
 #[get("/get_committed_txn_by_range?<start_version>&<limit>&<fetch_events>")]
 pub fn get_committed_txn_by_range(
-    state: State<Mutex<AppState>>,
+    state: State<AppState>,
     start_version: u64,
     limit: u64,
     fetch_events: bool,
 ) -> Result<Json<Vec<TxWithEvents>>> {
-    let proxy = &mut state.lock().proxy;
-
-    proxy
+    state
         .client
         .get_txn_by_range(start_version, limit, fetch_events)
         .map(|val| {
@@ -133,83 +158,33 @@ pub fn get_committed_txn_by_range(
         .map_err(|err| From::from(err))
 }
 
+#[derive(FromFormValue)]
+pub enum EventType {
+    Sent,
+    Received,
+}
+
 #[get("/get_events_by_account_and_type/<addr>?<event_type>&<start_seq_number>&<limit>&<ascending>")]
 pub fn get_events_by_account_and_type(
-    state: State<Mutex<AppState>>,
+    state: State<AppState>,
     addr: String,
-    event_type: String,
+    event_type: EventType,
     start_seq_number: u64,
     limit: u64,
     ascending: bool,
 ) -> Result<Json<AccWithEvents>> {
-    let proxy = &mut state.lock().proxy;
+    let address = utils::address_from_strings(&addr)?;
 
-    proxy
-        .get_events_by_account_and_type_alt(&addr, &event_type, start_seq_number, limit, ascending) // Don't fetch events: they are not serializable.
+    let path = match event_type {
+        EventType::Sent => account_sent_event_path(),
+        EventType::Received => account_received_event_path(),
+    };
+
+    let access_path = AccessPath::new(address, path);
+
+    state
+        .client
+        .get_events_by_access_path(access_path, start_seq_number, ascending, limit)
         .map(|(events, account)| Json(AccWithEvents { account, events }))
         .map_err(|err| From::from(err))
 }
-
-//#[derive(FromForm)]
-//pub struct TxReqData {
-//    program: ProgramKind, // TODO: Tag internally
-//    sender: String,
-//    gas_unit_price: Option<u64>,
-//    max_gas_amount: Option<u64>,
-//}
-//
-//#[derive(Deserialize)]
-//#[serde(tag = "type", rename_all = "snake_case")]
-//pub enum ProgramKind {
-//    Transfer {
-//        recipient: String,
-//        amount: String,
-//    },
-//    Mint {
-//        sender: String,
-//        amount: String,
-//    },
-//}
-//
-//#[post("/create_submit_transaction_req", data = "<data>")]
-//pub fn create_submit_transaction_req(state: State<Mutex<AppState>>, data: Form<TxReqData>) -> Result<Json<JsonValue>> {
-//    let proxy = &mut state.lock().proxy;
-//
-//    let program = match data.program {
-//        ProgramKind::Transfer { recipient, amount } => {
-//            let recipient =
-//                proxy.get_account_address_from_parameter(&recipient)?;
-//            let amount = ClientProxy::convert_to_micro_libras_alt(&amount)?;
-//            
-//            vm_genesis::encode_transfer_program(&recipient, amount)
-//        }
-//        ProgramKind::Mint { sender, amount } => {
-//            let sender =
-//                proxy.get_account_address_from_parameter(&sender)?;
-//            let amount = ClientProxy::convert_to_micro_libras_alt(&amount)?;
-//            
-//            vm_genesis::encode_mint_program(&sender, amount)
-//        }
-//    };
-//    
-//    let sender_address =
-//        proxy.get_account_address_from_parameter(&data.sender)?;
-//    let sender_ref_id = proxy.ref_id_by_address(&sender_address)?;
-//    
-//    // FIXME: Get account by address
-////    let sender_account = proxy
-//
-//    let tx = proxy.create_submit_transaction_req(
-//        program,
-//        &data.sender_account,
-//        data.gas_unit_price,
-//        data.max_gas_amount,
-//    )?;
-//    
-//
-//    let sender_mut = proxy.account_mut(sender_ref_id)?;
-//
-//    resp = proxy.client.submit_transaction(sender_mut, &req)?;
-//
-//    Ok(Json(json!({ "success": true })))
-//}

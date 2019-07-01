@@ -22,6 +22,7 @@ protobuf = "2.6"
 futures = "0.1.28"
 itertools = "0.8.0"
 grpcio = "0.4.4"
+hex = "0.3.2"
 
 libra_wallet = { path = "../client/libra_wallet" }
 config = { path = "../config" }

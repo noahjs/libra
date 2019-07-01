@@ -4,12 +4,11 @@ use serde::{ser::Serialize, Serializer};
 use crypto::HashValue;
 use types::{
     access_path::AccessPath,
+    account_config::AccountResource,
     account_state_blob::{AccountStateBlob, AccountStateWithProof},
     contract_event::{ContractEvent, EventWithProof},
     proof::{AccountStateProof, AccumulatorProof, EventProof, SparseMerkleProof},
     transaction::{SignedTransaction, TransactionInfo, Version},
-    account_config::AccountResource,
-    byte_array::ByteArray,
 };
 
 // Pure insanity. Might be better to add derive(Serialize) to all definitions.
@@ -18,7 +17,7 @@ use types::{
 pub struct AccountResourceSer {
     pub balance: u64,
     pub sequence_number: u64,
-    pub authentication_key: ByteArray,
+    pub authentication_key: String,
     pub sent_events_count: u64,
     pub received_events_count: u64,
 }
@@ -28,7 +27,7 @@ impl From<AccountResource> for AccountResourceSer {
         AccountResourceSer {
             balance: acc.balance(),
             sequence_number: acc.sequence_number(),
-            authentication_key: acc.authentication_key().clone(),
+            authentication_key: hex::encode(acc.authentication_key().as_bytes()),
             sent_events_count: acc.sent_events_count(),
             received_events_count: acc.received_events_count(),
         }
