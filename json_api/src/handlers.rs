@@ -102,7 +102,6 @@ pub fn transfer_coins(
     )?;
 
     Ok(Json(json!({
-        "success": true,
         "sequence": result,
     })))
 }
