@@ -45,8 +45,12 @@ impl Client {
                 let private_key: PrivateKey = hex::decode(private_key)
                     .context("Failed to decode private key")
                     .and_then(|bytes| {
-                        bincode::deserialize(&bytes).context("Failed to deserialize private key")
-                    })?;
+                        // TODO: Find a way to efficiently turn bytes into PrivateKey without unsafe.
+                        let bin = bincode::serialize(&bytes)
+                            .context("Failed to deserialize private key")?;
+                        bincode::deserialize(&bin)
+                            .context("Failed to deserialize private key")
+                    })?; 
                 
                 Ok(Client::from_private_key(private_key))
             }
