@@ -17,6 +17,7 @@ use crate::{
     key_factory::{ChildNumber, KeyFactory, Seed},
     mnemonic::Mnemonic,
 };
+use crate::key_factory::ExtendedPrivKey;
 use libra_crypto::hash::CryptoHash;
 use proto_conv::{FromProto, IntoProto};
 use protobuf::Message;
@@ -38,6 +39,29 @@ pub struct WalletLibrary {
 }
 
 impl WalletLibrary {
+    // JSON API HELPERS
+    pub fn sign_txn_with_child_num(&self, txn: RawTransaction, child: ChildNumber) -> Result<SignedTransaction> {
+        let raw_bytes = txn.into_proto().write_to_bytes()?;
+        let txn_hashvalue = RawTransactionBytes(&raw_bytes).hash();
+
+        let child_key = self.key_factory.private_child(child)?;
+        let signature = child_key.sign(txn_hashvalue);
+        let public_key = child_key.get_public();
+
+        let mut signed_txn = ProtoSignedTransaction::new();
+        signed_txn.set_raw_txn_bytes(raw_bytes.to_vec());
+        signed_txn.set_sender_public_key(public_key.to_bytes().to_vec());
+        signed_txn.set_sender_signature(signature.to_bytes().to_vec());
+
+        Ok(SignedTransaction::from_proto(signed_txn)?)
+    }
+    
+    pub fn get_child_private_key(&self, child: ChildNumber) -> Result<ExtendedPrivKey> {
+        self.key_factory.private_child(child)
+    }
+    
+    // ORIGINAL CODE
+    
     /// Constructor that generates a Mnemonic from OS randomness and subsequently instantiates an
     /// empty WalletLibrary from that Mnemonic
     #[allow(clippy::new_without_default)]

@@ -76,6 +76,13 @@ pub struct ExtendedPrivKey {
 }
 
 impl ExtendedPrivKey {
+    // JSON API HELPERS
+    pub fn get_private(&self) -> &ed25519_dalek::SecretKey {
+        &self.private_key
+    }
+    
+    // ORIGINAL CODE
+    
     /// Constructor for creating an ExtendedPrivKey from a ed25519 PrivateKey. Note that the
     /// ChildNumber are not used in this iteration of LibraWallet, but in order to
     /// enable more general Hierarchical KeyDerivation schemes, we include it for completeness.

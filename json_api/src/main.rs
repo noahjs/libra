@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(proc_macro_hygiene, decl_macro, type_alias_enum_variants)]
 
 #[macro_use]
 extern crate rocket;
@@ -6,17 +6,20 @@ extern crate structopt;
 #[macro_use]
 extern crate serde_derive;
 
-use parking_lot::Mutex;
-
-use client::client_proxy::ClientProxy;
-use logger::set_default_global_logger;
 use structopt::StructOpt;
 
-use crate::handlers::AppState;
+use logger::{prelude::*, set_default_global_logger};
 
+use crate::state::AppState;
+
+mod client;
 mod error;
+#[allow(dead_code)]
+mod grpc_client;
 mod handlers;
 mod serializers;
+mod state;
+mod utils;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -31,13 +34,13 @@ struct Args {
     /// Host address/name to connect to.
     #[structopt(short = "a", long = "host")]
     pub host: String,
-    /// Path to the generated keypair for the faucet account. The faucet account can be used to
-    /// mint coins. If not passed, a new keypair will be generated for
-    /// you and placed in a temporary directory.
-    /// To manually generate a keypair, use generate_keypair:
-    /// `cargo run -p generate_keypair -- -o <output_file_path>`
-    #[structopt(short = "m", long = "faucet_key_file_path")]
-    pub faucet_account_file: Option<String>,
+    //    /// Path to the generated keypair for the faucet account. The faucet account can be used
+    // to    /// mint coins. If not passed, a new keypair will be generated for
+    //    /// you and placed in a temporary directory.
+    //    /// To manually generate a keypair, use generate_keypair:
+    //    /// `cargo run -p generate_keypair -- -o <output_file_path>`
+    //    #[structopt(short = "m", long = "faucet_key_file_path")]
+    //    pub faucet_account_file: Option<String>,
     /// Host that operates a faucet service
     /// If not passed, will be derived from host parameter
     #[structopt(short = "f", long = "faucet_server")]
@@ -56,9 +59,6 @@ struct Args {
     /// But the preferred method is to simply use libra-swarm to run local networks
     #[structopt(short = "s", long = "validator_set_file")]
     pub validator_set_file: String,
-    /// If set, client will sync with validator during wallet recovery.
-    #[structopt(short = "r", long = "sync")]
-    pub sync: bool,
 }
 
 fn main() -> std::io::Result<()> {
@@ -66,21 +66,17 @@ fn main() -> std::io::Result<()> {
     crash_handler::setup_panic_handler();
 
     let args = Args::from_args();
-    let faucet_account_file = args.faucet_account_file.unwrap_or_else(|| "".to_string());
 
-    let client_proxy = ClientProxy::new(
+    let state = AppState::new(
         &args.host,
         &args.port,
         &args.validator_set_file,
-        &faucet_account_file,
-        args.sync,
         args.faucet_server,
-        args.mnemonic_file,
     )
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, &format!("{}", e)[..]))?;
 
     // Test connection to validator
-    let test_ret = client_proxy.test_validator_connection();
+    let test_ret = state.test_validator_connection();
 
     if let Err(e) = test_ret {
         println!(
@@ -88,16 +84,17 @@ fn main() -> std::io::Result<()> {
             args.host, args.port, e
         );
         return Ok(());
+    } else {
+        info!("Connected to validator");
     }
 
     rocket::ignite()
-        .manage(Mutex::new(AppState {
-            proxy: client_proxy,
-        }))
+        .manage(state)
         .mount(
             "/",
             routes![
-                handlers::create_next_account,
+                handlers::create_wallet,
+                handlers::create_wallet_account,
                 handlers::get_latest_account_state,
                 handlers::mint_coins,
                 handlers::transfer_coins,
